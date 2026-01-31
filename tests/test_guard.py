@@ -1,7 +1,7 @@
 """Tests for handoff validation."""
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from handoff import guard, HandoffViolation
 
 
@@ -20,6 +20,7 @@ class TestGuardDecorator:
 
     def test_valid_input_and_output(self):
         """Should pass with valid data."""
+
         @guard(input=SimpleInput, output=SimpleOutput)
         def my_func(state: dict) -> dict:
             return {"result": f"Hello {state['name']}", "processed": True}
@@ -30,6 +31,7 @@ class TestGuardDecorator:
 
     def test_invalid_input_raises(self):
         """Should raise HandoffViolation on invalid input."""
+
         @guard(input=SimpleInput, output=SimpleOutput)
         def my_func(state: dict) -> dict:
             return {"result": "ok", "processed": True}
@@ -42,6 +44,7 @@ class TestGuardDecorator:
 
     def test_invalid_output_raises(self):
         """Should raise HandoffViolation on invalid output."""
+
         @guard(input=SimpleInput, output=SimpleOutput)
         def my_func(state: dict) -> dict:
             return {"result": "ok"}  # Missing 'processed'
@@ -54,6 +57,7 @@ class TestGuardDecorator:
 
     def test_on_fail_return_none(self):
         """Should return None on failure when configured."""
+
         @guard(input=SimpleInput, output=SimpleOutput, on_fail="return_none")
         def my_func(state: dict) -> dict:
             return {"result": "ok"}  # Invalid output
@@ -63,6 +67,7 @@ class TestGuardDecorator:
 
     def test_on_fail_return_input(self):
         """Should return input on failure when configured."""
+
         @guard(input=SimpleInput, output=SimpleOutput, on_fail="return_input")
         def my_func(state: dict) -> dict:
             return {"result": "ok"}  # Invalid output
@@ -84,6 +89,7 @@ class TestGuardDecorator:
 
     def test_custom_node_name(self):
         """Should use custom node name in violations."""
+
         @guard(input=SimpleInput, node_name="custom_name")
         def my_func(state: dict) -> dict:
             return state
@@ -95,6 +101,7 @@ class TestGuardDecorator:
 
     def test_output_only_validation(self):
         """Should work with output validation only."""
+
         @guard(output=SimpleOutput)
         def my_func(state: dict) -> dict:
             return {"result": "ok"}  # Missing 'processed'
@@ -104,6 +111,7 @@ class TestGuardDecorator:
 
     def test_input_only_validation(self):
         """Should work with input validation only."""
+
         @guard(input=SimpleInput)
         def my_func(state: dict) -> dict:
             return {"anything": "goes"}  # No output validation
@@ -123,6 +131,7 @@ class TestAsyncGuard:
     @pytest.mark.asyncio
     async def test_async_valid(self):
         """Should work with async functions."""
+
         @guard(input=SimpleInput, output=SimpleOutput)
         async def my_async_func(state: dict) -> dict:
             return {"result": "async ok", "processed": True}
@@ -133,6 +142,7 @@ class TestAsyncGuard:
     @pytest.mark.asyncio
     async def test_async_invalid_raises(self):
         """Should raise on invalid async output."""
+
         @guard(input=SimpleInput, output=SimpleOutput)
         async def my_async_func(state: dict) -> dict:
             return {"result": "ok"}  # Missing 'processed'
@@ -146,6 +156,7 @@ class TestViolationContext:
 
     def test_violation_has_suggestion(self):
         """Violations should include helpful suggestions."""
+
         @guard(input=SimpleInput)
         def my_func(state: dict) -> dict:
             return state
@@ -157,6 +168,7 @@ class TestViolationContext:
 
     def test_violation_to_dict(self):
         """Violations should serialize to dict."""
+
         @guard(input=SimpleInput)
         def my_func(state: dict) -> dict:
             return state

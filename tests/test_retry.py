@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from handoff import guard, HandoffViolation
-from handoff.retry import retry, RetryState, Diagnostic, AttemptRecord
+from handoff.retry import retry, RetryState
 from handoff.utils import ParseError
 
 
@@ -139,7 +139,9 @@ class TestRetryProxy:
 
         my_func({"x": 1})
         assert feedback_text is not None
-        assert "validation" in feedback_text.lower() or "failed" in feedback_text.lower()
+        assert (
+            "validation" in feedback_text.lower() or "failed" in feedback_text.lower()
+        )
 
     def test_retry_feedback_none_first_attempt(self):
         feedback_text = "sentinel"
