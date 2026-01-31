@@ -55,7 +55,7 @@ def _log_attempt():
         err = retry.last_error
         detail = err.errors[0] if err.errors else err.message
         print(f"  Attempt {retry.attempt - 1}/{retry.max_attempts}: \u274c {detail}")
-        print(f"    \u2192 Retrying with feedback...")
+        print("    \u2192 Retrying with feedback...")
 
 
 def _get_mock(name: str) -> dict | None:
@@ -83,10 +83,12 @@ Plan content for: {user_request}"""
         prompt += f"\n\n{retry.feedback()}"
 
     if use_llm:
-        response = call_llm([
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": f"Plan content for: {user_request}"},
-        ])
+        response = call_llm(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Plan content for: {user_request}"},
+            ]
+        )
         return parse_json(response)
 
     mock = _get_mock("planner")
@@ -117,10 +119,12 @@ Questions: {plan.get('questions', [])}"""
         prompt += f"\n\n{retry.feedback()}"
 
     if use_llm:
-        response = call_llm([
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": f"Research: {plan['topic']}"},
-        ])
+        response = call_llm(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Research: {plan['topic']}"},
+            ]
+        )
         return parse_json(response)
 
     mock = _get_mock("researcher")
@@ -157,10 +161,12 @@ The draft must be at least 100 characters and the word_count must be at least 50
         prompt += f"\n\n{retry.feedback()}"
 
     if use_llm:
-        response = call_llm([
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": f"Write about: {research['topic']}"},
-        ])
+        response = call_llm(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Write about: {research['topic']}"},
+            ]
+        )
         return parse_json(response)
 
     mock = _get_mock("writer")

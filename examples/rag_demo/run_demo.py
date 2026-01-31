@@ -40,18 +40,22 @@ def run_pipeline(query: str, *, use_llm: bool = False):
         print("  [1/4] Query Parser...")
         parsed = query_parser(state)
         state["parsed_query"] = parsed
-        print(f"        \u2705 ParsedQuery validated")
+        print("        \u2705 ParsedQuery validated")
         print(f"        Search query: '{parsed['search_query']}'")
 
         print("  [2/4] Retriever...")
         retrieved = retriever(state)
         state["retrieved"] = retrieved
-        print(f"        \u2705 RetrievedDocs validated ({len(retrieved['documents'])} docs)")
+        print(
+            f"        \u2705 RetrievedDocs validated ({len(retrieved['documents'])} docs)"
+        )
 
         print("  [3/4] Reranker...")
         ranked = reranker(state)
         state["ranked"] = ranked
-        print(f"        \u2705 RankedDocs validated (top score: {ranked['documents'][0]['score']:.2f})")
+        print(
+            f"        \u2705 RankedDocs validated (top score: {ranked['documents'][0]['score']:.2f})"
+        )
 
         print("  [4/4] Generator...")
         output = generator(state, use_llm=use_llm)
@@ -61,7 +65,9 @@ def run_pipeline(query: str, *, use_llm: bool = False):
         print()
         print("  Citation check...")
         validate_citations(output, state)
-        print(f"        \u2705 All {len(output['citations'])} citation(s) reference retrieved docs")
+        print(
+            f"        \u2705 All {len(output['citations'])} citation(s) reference retrieved docs"
+        )
 
         print()
         print("  " + "-" * 50)
@@ -100,8 +106,16 @@ def run_hallucination_demo():
     generator_output = {
         "answer": "Machine learning is a powerful technology that enables computers to learn from data without explicit programming.",
         "citations": [
-            {"doc_id": "doc_1", "quote": "Python is a high-level language", "relevance": "Valid"},
-            {"doc_id": "doc_999", "quote": "This doc does not exist", "relevance": "Hallucinated"},
+            {
+                "doc_id": "doc_1",
+                "quote": "Python is a high-level language",
+                "relevance": "Valid",
+            },
+            {
+                "doc_id": "doc_999",
+                "quote": "This doc does not exist",
+                "relevance": "Hallucinated",
+            },
         ],
         "confidence": 0.85,
         "sources_used": 2,
@@ -111,7 +125,7 @@ def run_hallucination_demo():
         validate_citations(generator_output, state)
         print("  No hallucination detected.")
     except HandoffViolation as e:
-        print(f"  \u274c HandoffViolation: hallucinated citation detected")
+        print("  \u274c HandoffViolation: hallucinated citation detected")
         print(f"    Contract: {e.context.contract_type}")
         print(f"    Field: {e.context.field_path}")
         print(f"    Expected: {e.context.expected}")
@@ -124,8 +138,15 @@ def run_hallucination_demo():
 
 def main():
     parser = argparse.ArgumentParser(description="handoff-guard RAG demo")
-    parser.add_argument("--api", action="store_true", help="Use real LLM calls via OpenRouter")
-    parser.add_argument("--query", type=str, default="What is RAG and why does it reduce hallucinations?", help="User query")
+    parser.add_argument(
+        "--api", action="store_true", help="Use real LLM calls via OpenRouter"
+    )
+    parser.add_argument(
+        "--query",
+        type=str,
+        default="What is RAG and why does it reduce hallucinations?",
+        help="User query",
+    )
     args = parser.parse_args()
 
     print("\n" + "=" * 60)

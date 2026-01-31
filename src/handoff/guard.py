@@ -87,15 +87,17 @@ def _extract_violations(
 
         suggestion = _generate_suggestion(err["type"], field_path, contract_type)
 
-        violations.append(ViolationContext(
-            node_name=node_name,
-            contract_type=contract_type,
-            field_path=field_path or "<root>",
-            expected=err["msg"],
-            received=received,
-            received_type=type(received).__name__,
-            suggestion=suggestion,
-        ))
+        violations.append(
+            ViolationContext(
+                node_name=node_name,
+                contract_type=contract_type,
+                field_path=field_path or "<root>",
+                expected=err["msg"],
+                received=received,
+                received_type=type(received).__name__,
+                suggestion=suggestion,
+            )
+        )
 
     return violations
 
@@ -167,6 +169,7 @@ def guard(
     max_attempts: int = 1,
     retry_on: tuple[str, ...] = ("validation", "parse"),
     on_fail: OnFailAction | Callable[[HandoffViolation], Any] = "raise",
+    input_param: str | None = "state",
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator to validate input/output at agent boundaries.
@@ -182,6 +185,7 @@ def guard(
             - "return_none": Return None
             - "return_input": Return input unchanged
             - callable: Call with HandoffViolation, return its result
+        input_param: Name of the input argument to validate (default: "state")
 
     Example:
         @guard(input=RequestSchema, output=ResponseSchema)
@@ -197,6 +201,20 @@ def guard(
         sig = inspect.signature(func)
         _accepts_retry = "retry" in sig.parameters
 
+        def _bind_input(args: tuple, kwargs: dict) -> Any:
+            """Extract the input argument using signature binding."""
+            if input_param is None:
+                if args:
+                    return args[0]
+                return kwargs.get("state")
+            try:
+                bound = sig.bind_partial(*args, **kwargs)
+            except TypeError:
+                return kwargs.get(input_param)
+            if input_param in bound.arguments:
+                return bound.arguments[input_param]
+            return kwargs.get(input_param)
+
         def _handle_violation(violation: HandoffViolation, input_data: Any) -> Any:
             if on_fail == "raise":
                 raise violation
@@ -209,12 +227,13 @@ def guard(
             else:
                 raise violation
 
-        def _validate_input(args: tuple, kwargs: dict) -> tuple[Any, list[ViolationContext]]:
+        def _validate_input(
+            args: tuple, kwargs: dict
+        ) -> tuple[Any, list[ViolationContext]]:
             if not input:
-                return (args[0] if args else kwargs.get("state")), []
+                return _bind_input(args, kwargs), []
 
-            # Get the first argument (usually 'state')
-            input_data = args[0] if args else kwargs.get("state")
+            input_data = _bind_input(args, kwargs)
 
             success, validated, violations = _validate_data(
                 input_data, input, _node_name, "input"
@@ -237,9 +256,10 @@ def guard(
 
         def _is_retryable_parse_error(exc: Exception) -> bool:
             """Check if exception is a parse-related error eligible for retry."""
-            return isinstance(exc, (ParseError, json.JSONDecodeError, KeyError, TypeError))
+            return isinstance(exc, (ParseError, json.JSONDecodeError))
 
         if is_async:
+
             @wraps(func)
             async def async_wrapper(*args, **kwargs) -> T:
                 # Validate input (outside retry loop — input doesn't change)
@@ -271,13 +291,17 @@ def guard(
                         except Exception as exc:
                             if _is_retryable_parse_error(exc) and "parse" in retry_on:
                                 elapsed = (time.monotonic() - start_time) * 1000
-                                diag = _build_parse_diagnostic(exc, getattr(exc, 'raw_output', None))
+                                diag = _build_parse_diagnostic(
+                                    exc, getattr(exc, "raw_output", None)
+                                )
                                 last_diagnostic = diag
-                                history.append(AttemptRecord(
-                                    attempt=attempt_num,
-                                    diagnostic=diag,
-                                    duration_ms=elapsed,
-                                ))
+                                history.append(
+                                    AttemptRecord(
+                                        attempt=attempt_num,
+                                        diagnostic=diag,
+                                        duration_ms=elapsed,
+                                    )
+                                )
                                 if attempt_num < max_attempts:
                                     continue
                                 # Final attempt — build violation
@@ -290,7 +314,9 @@ def guard(
                                     received_type=type(exc).__name__,
                                     suggestion="Return valid JSON or structured data",
                                 )
-                                violation = HandoffViolation(violation_ctx, history=history)
+                                violation = HandoffViolation(
+                                    violation_ctx, history=history
+                                )
                                 return _handle_violation(violation, input_data)
                             else:
                                 raise
@@ -299,13 +325,17 @@ def guard(
                         output_violations = _validate_output_data(result)
                         elapsed = (time.monotonic() - start_time) * 1000
                         if output_violations:
-                            diag = _build_validation_diagnostic(output_violations, result)
+                            diag = _build_validation_diagnostic(
+                                output_violations, result
+                            )
                             last_diagnostic = diag
-                            history.append(AttemptRecord(
-                                attempt=attempt_num,
-                                diagnostic=diag,
-                                duration_ms=elapsed,
-                            ))
+                            history.append(
+                                AttemptRecord(
+                                    attempt=attempt_num,
+                                    diagnostic=diag,
+                                    duration_ms=elapsed,
+                                )
+                            )
                             if "validation" in retry_on and attempt_num < max_attempts:
                                 continue
                             # Final attempt or validation not retried
@@ -315,10 +345,12 @@ def guard(
                             return _handle_violation(violation, input_data)
 
                         # Success
-                        history.append(AttemptRecord(
-                            attempt=attempt_num,
-                            duration_ms=elapsed,
-                        ))
+                        history.append(
+                            AttemptRecord(
+                                attempt=attempt_num,
+                                duration_ms=elapsed,
+                            )
+                        )
                         return result
 
                     finally:
@@ -327,6 +359,7 @@ def guard(
             return async_wrapper
 
         else:
+
             @wraps(func)
             def sync_wrapper(*args, **kwargs) -> T:
                 # Validate input (outside retry loop — input doesn't change)
@@ -356,15 +389,23 @@ def guard(
                         try:
                             result = func(*args, **call_kwargs)
                         except Exception as exc:
-                            if _is_retryable_parse_error(exc) and "parse" in retry_on and max_attempts > 1:
+                            if (
+                                _is_retryable_parse_error(exc)
+                                and "parse" in retry_on
+                                and max_attempts > 1
+                            ):
                                 elapsed = (time.monotonic() - start_time) * 1000
-                                diag = _build_parse_diagnostic(exc, getattr(exc, 'raw_output', None))
+                                diag = _build_parse_diagnostic(
+                                    exc, getattr(exc, "raw_output", None)
+                                )
                                 last_diagnostic = diag
-                                history.append(AttemptRecord(
-                                    attempt=attempt_num,
-                                    diagnostic=diag,
-                                    duration_ms=elapsed,
-                                ))
+                                history.append(
+                                    AttemptRecord(
+                                        attempt=attempt_num,
+                                        diagnostic=diag,
+                                        duration_ms=elapsed,
+                                    )
+                                )
                                 if attempt_num < max_attempts:
                                     continue
                                 # Final attempt — build violation
@@ -377,7 +418,9 @@ def guard(
                                     received_type=type(exc).__name__,
                                     suggestion="Return valid JSON or structured data",
                                 )
-                                violation = HandoffViolation(violation_ctx, history=history)
+                                violation = HandoffViolation(
+                                    violation_ctx, history=history
+                                )
                                 return _handle_violation(violation, input_data)
                             else:
                                 raise
@@ -386,13 +429,17 @@ def guard(
                         output_violations = _validate_output_data(result)
                         elapsed = (time.monotonic() - start_time) * 1000
                         if output_violations:
-                            diag = _build_validation_diagnostic(output_violations, result)
+                            diag = _build_validation_diagnostic(
+                                output_violations, result
+                            )
                             last_diagnostic = diag
-                            history.append(AttemptRecord(
-                                attempt=attempt_num,
-                                diagnostic=diag,
-                                duration_ms=elapsed,
-                            ))
+                            history.append(
+                                AttemptRecord(
+                                    attempt=attempt_num,
+                                    diagnostic=diag,
+                                    duration_ms=elapsed,
+                                )
+                            )
                             if "validation" in retry_on and attempt_num < max_attempts:
                                 continue
                             # Final attempt or validation not retried
@@ -402,10 +449,12 @@ def guard(
                             return _handle_violation(violation, input_data)
 
                         # Success
-                        history.append(AttemptRecord(
-                            attempt=attempt_num,
-                            duration_ms=elapsed,
-                        ))
+                        history.append(
+                            AttemptRecord(
+                                attempt=attempt_num,
+                                duration_ms=elapsed,
+                            )
+                        )
                         return result
 
                     finally:

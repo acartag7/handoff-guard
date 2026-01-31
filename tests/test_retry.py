@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from handoff import guard, HandoffViolation
-from handoff.retry import retry, RetryState, Diagnostic, AttemptRecord
+from handoff.retry import retry, RetryState
 from handoff.utils import ParseError
 
 
@@ -139,7 +139,9 @@ class TestRetryProxy:
 
         my_func({"x": 1})
         assert feedback_text is not None
-        assert "validation" in feedback_text.lower() or "failed" in feedback_text.lower()
+        assert (
+            "validation" in feedback_text.lower() or "failed" in feedback_text.lower()
+        )
 
     def test_retry_feedback_none_first_attempt(self):
         feedback_text = "sentinel"
@@ -222,6 +224,39 @@ class TestParseRetry:
 
         with pytest.raises(ParseError):
             my_func({"x": 1})
+
+
+class TestParseRetryEdgeCases:
+    """Tests for parse retry edge cases."""
+
+    def test_parse_error_raw_output_truncated_in_diagnostic(self):
+        """Diagnostic raw_output should be truncated to 500 chars."""
+
+        @guard(output=SimpleOutput, max_attempts=2)
+        def my_func(state: dict) -> dict:
+            raise ParseError("bad json", raw_output="x" * 2000)
+
+        with pytest.raises(HandoffViolation) as exc_info:
+            my_func({"x": 1})
+
+        last_diag = exc_info.value.history[-1].diagnostic
+        assert last_diag is not None
+        assert last_diag.raw_output is not None
+        assert len(last_diag.raw_output) <= 500
+
+    def test_key_error_not_retried_by_default(self):
+        """KeyError should not be treated as a retryable parse error."""
+        call_count = 0
+
+        @guard(output=SimpleOutput, max_attempts=3)
+        def my_func(state: dict) -> dict:
+            nonlocal call_count
+            call_count += 1
+            raise KeyError("missing")
+
+        with pytest.raises(KeyError):
+            my_func({"x": 1})
+        assert call_count == 1
 
 
 class TestOnFailAfterRetry:
