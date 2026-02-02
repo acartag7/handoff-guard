@@ -8,3 +8,4 @@ build/
 *.egg
 .env
 CLAUDE.local
+.claude/skills/
