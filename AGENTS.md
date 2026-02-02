@@ -69,12 +69,13 @@ from handoff.langgraph import guarded_node, validate_state
     max_attempts=3,            # Retry up to N times (default: 1, no retry)
     retry_on=("validation", "parse"),  # Error types that trigger retry
     on_fail="raise",           # "raise" | "return_none" | "return_input" | callable
+    input_param="state",       # Name of the input arg to validate (default: "state")
 )
 ```
 
 - Input validation happens once, outside the retry loop
 - Output validation happens inside the retry loop
-- Parse errors (`ParseError`, `json.JSONDecodeError`, `KeyError`, `TypeError`) are retried when `"parse"` is in `retry_on`
+- Parse errors (`ParseError`, `json.JSONDecodeError`) are retried when `"parse"` is in `retry_on`
 - If the function has a `retry` parameter, `RetryState` is auto-injected
 
 ### `retry` proxy
@@ -96,7 +97,7 @@ retry.history           # List of AttemptRecord
 
 ### `parse_json`
 
-Parses JSON from LLM text output, stripping markdown code fences and BOM. Raises `ParseError` (retryable by `@guard`) on failure.
+Parses JSON from LLM text output. Strips UTF-8 BOM, markdown code fences, and conversational wrappers (preamble/postamble text) using JSON boundary extraction. Raises `ParseError` (retryable by `@guard`) on failure.
 
 ### `HandoffViolation`
 
@@ -155,7 +156,7 @@ python -m build
 - **Dict-oriented** — Agents typically pass dicts; the decorator validates dicts against Pydantic models without requiring the function to use models directly
 - **ContextVar for retry state** — The `retry` proxy uses a ContextVar so it's async-safe and doesn't require passing state through function signatures
 - **Input validation outside retry loop** — Input doesn't change between retries, so it's validated once upfront
-- **Parse errors retryable** — `ParseError`, `json.JSONDecodeError`, `KeyError`, `TypeError` are caught and retried when `max_attempts > 1`
+- **Parse errors retryable** — `ParseError` and `json.JSONDecodeError` are caught and retried when `max_attempts > 1`
 
 ## Adding New Features
 
@@ -172,6 +173,6 @@ Tests are split across four files:
 - `test_guard.py` — Guard decorator: valid passthrough, invalid input/output raises, on_fail modes, custom node_name, input/output-only, async support, violation context and serialization
 - `test_retry.py` — Retry loop: succeeds on later attempt, exhausts max_attempts, RetryState injection, proxy behavior, feedback text, violation history, parse error retry, retry_on filtering, on_fail after retry, input validation skips retry, async retry
 - `test_testing.py` — `mock_retry()` context manager sets context and proxy works
-- `test_utils.py` — `parse_json`: valid JSON, code fence stripping, invalid raises ParseError, non-string raises, BOM stripping
+- `test_utils.py` — `parse_json`: valid JSON, code fence stripping, conversational wrapper stripping (preamble, postamble, combined, multiline, nested, arrays, escaped strings), invalid raises ParseError, non-string raises, BOM stripping
 
 Run with: `pytest tests/ -v`
