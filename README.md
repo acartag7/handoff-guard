@@ -2,7 +2,7 @@
 
 > Validation for LLM agents that retries with feedback.
 
-[![PyPI version](https://badge.fury.io/py/handoff-guard.svg)](https://badge.fury.io/py/handoff-guard)
+[![PyPI version](https://img.shields.io/pypi/v/handoff-guard)](https://pypi.org/project/handoff-guard/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## The Problem
