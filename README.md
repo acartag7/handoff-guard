@@ -76,7 +76,7 @@ python -m examples.llm_demo.run_demo  # no API key needed
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
 - **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info. Use `detailed=True` to detect truncation (max_tokens hit) and repair status
-- **Framework agnostic** — Works with LangGraph, plain Python (CrewAI adapter planned)
+- **Framework agnostic** — Works with LangGraph, plain Python, any framework
 - **Async supported** — Works with `async def` functions
 - **Lightweight** — Pydantic + json-repair, no Docker, no telemetry
 
@@ -212,13 +212,6 @@ The difference:
 | You wire up validation manually | One decorator |
 | No retry | Automatic retry with feedback |
 | Errors are for developers | Errors are actionable for agents |
-
-## Roadmap
-
-- [ ] Invariant contracts (input/output relationships)
-- [ ] CrewAI adapter
-- [x] Retry with feedback loop
-- [ ] VS Code extension for violation inspection
 
 ## Contributing
 
