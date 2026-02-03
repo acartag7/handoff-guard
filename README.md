@@ -78,7 +78,7 @@ python -m examples.llm_demo.run_demo  # no API key needed
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
 - **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info. Use `detailed=True` to detect truncation (max_tokens hit) and repair status
-- **Framework agnostic** — Works with LangGraph or plain Python (framework-agnostic)
+- **Framework agnostic** — Works with LangGraph or plain Python
 - **Async supported** — Works with `async def` functions (context-local retry state)
 - **Lightweight** — Pydantic + json-repair, no Docker, no telemetry
 
@@ -203,7 +203,7 @@ def router(state: dict) -> dict:
 
 ## Why not just use Pydantic directly?
 
-You should! Handoff uses Pydantic under the hood.
+You should! handoff-guard uses Pydantic under the hood.
 
 The difference:
 
