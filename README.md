@@ -71,7 +71,7 @@ python -m examples.llm_demo.run_demo --pipeline --api
 - **Know which node failed** — No more guessing from stack traces
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
-- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, raises `ParseError` on failure
+- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info
 - **Framework agnostic** — Works with LangGraph, CrewAI, or plain Python
 - **Lightweight** — Just Pydantic, no Docker, no telemetry servers
 
@@ -121,7 +121,15 @@ data = parse_json('```json\n{"key": "value"}\n```')
 data = parse_json('Sure! Here\'s the JSON:\n{"key": "value"}\nLet me know if you need anything!')
 # Returns: {"key": "value"}
 
+# Repairs malformed JSON
+data = parse_json('{"a": 1,}')        # trailing comma
+data = parse_json("{'a': 1}")         # single quotes
+data = parse_json('{a: 1}')           # unquoted keys
+data = parse_json('{"a": 1')          # missing brace
+data = parse_json('{"a": 1 // comment}')  # JS comments
+
 # Raises ParseError on failure (retryable by @guard)
+# ParseError includes .original with line/column info for actionable feedback
 ```
 
 ### `HandoffViolation`
