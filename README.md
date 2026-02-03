@@ -57,6 +57,8 @@ HandoffViolation in 'writer' (attempt 3/3):
 pip install handoff-guard
 ```
 
+Requires Python 3.10+ and Pydantic v2.
+
 ```python
 from handoff import guard, retry, parse_json  # PyPI: handoff-guard
 ```
@@ -76,8 +78,8 @@ python -m examples.llm_demo.run_demo  # no API key needed
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
 - **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info. Use `detailed=True` to detect truncation (max_tokens hit) and repair status
-- **Framework agnostic** — Works with LangGraph, plain Python, any framework
-- **Async supported** — Works with `async def` functions
+- **Framework agnostic** — Works with LangGraph or plain Python (framework-agnostic)
+- **Async supported** — Works with `async def` functions (context-local retry state)
 - **Lightweight** — Pydantic + json-repair, no Docker, no telemetry
 
 ## API
@@ -116,7 +118,7 @@ retry.history         # List of AttemptRecord objects
 ### `parse_json`
 
 ```python
-from handoff import parse_json, ParseResult
+from handoff import parse_json  # ParseResult is the return type when detailed=True
 
 # Handles code fences
 data = parse_json('```json\n{"key": "value"}\n```')
