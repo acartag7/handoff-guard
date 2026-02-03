@@ -127,3 +127,71 @@ class TestParseJson:
             parse_json("not json at all")
         assert exc_info.value.original is not None
         assert isinstance(exc_info.value.original, Exception)
+
+    # --- Error location and suggestions (HG-3) ---
+
+    def test_parse_error_includes_location(self):
+        # Use input that can't be repaired - no JSON structure at all
+        with pytest.raises(ParseError) as exc_info:
+            parse_json("not json at all")
+        msg = str(exc_info.value).lower()
+        assert "line" in msg
+        assert "column" in msg or "col" in msg
+
+    def test_parse_error_includes_context_snippet(self):
+        # Multi-line non-JSON input
+        with pytest.raises(ParseError) as exc_info:
+            parse_json("first line\nsecond line\nthird line")
+        msg = str(exc_info.value)
+        # Should show line numbers and pipe separators
+        assert " | " in msg
+        assert "1 |" in msg
+
+    def test_parse_error_includes_pointer(self):
+        with pytest.raises(ParseError) as exc_info:
+            parse_json("not json")
+        msg = str(exc_info.value)
+        # Should have caret pointer
+        assert "^" in msg
+
+    def test_parse_error_includes_suggestion(self):
+        # "Expecting value" error should give a suggestion
+        with pytest.raises(ParseError) as exc_info:
+            parse_json("invalid text here")
+        msg = str(exc_info.value).lower()
+        assert "suggestion" in msg
+
+    def test_parse_error_includes_preview(self):
+        with pytest.raises(ParseError) as exc_info:
+            parse_json("not valid json")
+        msg = str(exc_info.value)
+        assert "input preview" in msg.lower()
+        assert "not valid json" in msg
+
+    def test_parse_error_preview_truncates_long_input(self):
+        # Long non-JSON input that will fail
+        long_input = "x" * 300 + " not json"
+        with pytest.raises(ParseError) as exc_info:
+            parse_json(long_input)
+        msg = str(exc_info.value)
+        assert "..." in msg  # Should be truncated in preview
+        assert exc_info.value.raw_output is not None
+
+    def test_parse_error_multiline_shows_context(self):
+        # Multi-line input - error on first line but context shows surrounding
+        text = "line one\nline two\nline three"
+        with pytest.raises(ParseError) as exc_info:
+            parse_json(text)
+        msg = str(exc_info.value)
+        # Should show the line with pipe separator
+        assert "| " in msg
+        assert "line one" in msg
+
+    def test_parse_error_extra_data_suggestion(self):
+        # Valid JSON followed by extra data - cannot be repaired
+        with pytest.raises(ParseError) as exc_info:
+            parse_json('123 extra')
+        msg = str(exc_info.value).lower()
+        # Should have location info
+        assert "line" in msg
+        assert "column" in msg or "col" in msg
