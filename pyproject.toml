@@ -1,6 +1,6 @@
 [project]
 name = "handoff-guard"
-version = "0.2.0"
+version = "0.2.1"
 description = "Lightweight validation at agent boundaries. Know what broke and where."
 readme = "README.md"
 license = {text = "MIT"}

@@ -75,7 +75,7 @@ python -m examples.llm_demo.run_demo  # no API key needed
 - **Know which node failed** — No more guessing from stack traces
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
-- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info
+- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info. Use `detailed=True` to detect truncation (max_tokens hit) and repair status
 - **Framework agnostic** — Works with LangGraph, plain Python (CrewAI adapter planned)
 - **Async supported** — Works with `async def` functions
 - **Lightweight** — Pydantic + json-repair, no Docker, no telemetry
@@ -116,7 +116,7 @@ retry.history         # List of AttemptRecord objects
 ### `parse_json`
 
 ```python
-from handoff import parse_json
+from handoff import parse_json, ParseResult
 
 # Handles code fences
 data = parse_json('```json\n{"key": "value"}\n```')
@@ -132,6 +132,12 @@ data = parse_json("{'a': 1}")         # single quotes
 data = parse_json('{a: 1}')           # unquoted keys
 data = parse_json('{"a": 1')          # missing brace
 data = parse_json('{"a": 1 // comment}')  # JS comments
+
+# Detailed mode: detect truncation and repair
+result = parse_json('{"draft": "long text...', detailed=True)
+result.data        # the parsed dict/list
+result.truncated   # True if LLM hit max_tokens (unmatched braces)
+result.repaired    # True if JSON had syntax errors that were auto-fixed
 
 # Raises ParseError on failure (retryable by @guard)
 # ParseError includes detailed context:
