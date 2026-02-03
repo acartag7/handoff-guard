@@ -1,9 +1,26 @@
 """Utility functions for handoff."""
 
+from dataclasses import dataclass
 import json
 import re
+from typing import overload, Literal
 
 from json_repair import loads as repair_json
+
+
+@dataclass
+class ParseResult:
+    """Result of parse_json with detailed=True.
+
+    Attributes:
+        data: The parsed JSON data (dict or list).
+        truncated: True if the input appeared to be truncated (e.g., hit max_tokens).
+        repaired: True if the JSON had syntax errors that were auto-fixed.
+    """
+
+    data: dict | list
+    truncated: bool = False
+    repaired: bool = False
 
 
 def _format_context_snippet(text: str, lineno: int, colno: int) -> str:
@@ -205,13 +222,72 @@ def _extract_json_substring(text: str) -> str | None:
     return None
 
 
-def parse_json(text: str) -> dict:
+def _is_likely_truncated(text: str) -> bool:
+    """Detect if JSON appears to be truncated (e.g., hit max_tokens).
+
+    Returns True if there are unmatched opening braces/brackets,
+    indicating the JSON was cut off before completion.
+    """
+    if not text:
+        return False
+
+    # Count unmatched braces/brackets, respecting JSON string boundaries
+    depth_brace = 0
+    depth_bracket = 0
+    in_string = False
+    escape = False
+
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+
+        if ch == "\\":
+            if in_string:
+                escape = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == "{":
+            depth_brace += 1
+        elif ch == "}":
+            depth_brace -= 1
+        elif ch == "[":
+            depth_bracket += 1
+        elif ch == "]":
+            depth_bracket -= 1
+
+    return depth_brace > 0 or depth_bracket > 0
+
+
+@overload
+def parse_json(text: str, *, detailed: Literal[False] = False) -> dict | list: ...
+
+
+@overload
+def parse_json(text: str, *, detailed: Literal[True]) -> ParseResult: ...
+
+
+def parse_json(text: str, *, detailed: bool = False) -> dict | list | ParseResult:
     """Parse JSON from text, handling common LLM output quirks.
 
     Strips UTF-8 BOM, markdown code fences, and conversational
     wrappers (preamble/postamble text) before parsing. Repairs
     common JSON malformations (trailing commas, single quotes,
     unquoted keys, missing braces, comments).
+
+    Args:
+        text: The text to parse as JSON.
+        detailed: If True, return a ParseResult with truncation/repair info.
+
+    Returns:
+        The parsed JSON data (dict or list), or ParseResult if detailed=True.
 
     Raises:
         ParseError: If text cannot be parsed as JSON.
@@ -228,16 +304,29 @@ def parse_json(text: str) -> dict:
     # Track first decode error for actionable feedback
     first_error: json.JSONDecodeError | None = None
 
+    # Track status for detailed mode
+    was_repaired = False
+    was_truncated = False
+
+    # Check for truncation before any processing
+    if _is_likely_truncated(cleaned):
+        was_truncated = True
+
+    def _return(data: dict | list) -> dict | list | ParseResult:
+        if detailed:
+            return ParseResult(data=data, truncated=was_truncated, repaired=was_repaired)
+        return data
+
     # Fast path: try parsing directly
     try:
-        return json.loads(cleaned)
+        return _return(json.loads(cleaned))
     except json.JSONDecodeError as e:
         first_error = e
 
     # Strip code fences and retry
     stripped = _strip_code_fences(cleaned)
     try:
-        return json.loads(stripped)
+        return _return(json.loads(stripped))
     except json.JSONDecodeError:
         pass
 
@@ -245,7 +334,7 @@ def parse_json(text: str) -> dict:
     extracted = _extract_json_substring(cleaned)
     if extracted is not None:
         try:
-            return json.loads(extracted)
+            return _return(json.loads(extracted))
         except json.JSONDecodeError:
             pass
 
@@ -255,7 +344,8 @@ def parse_json(text: str) -> dict:
         repaired = repair_json(repair_target)
         # Only accept dict/list results (json_repair returns "" for invalid input)
         if isinstance(repaired, (dict, list)):
-            return repaired
+            was_repaired = True
+            return _return(repaired)
     except Exception:
         pass
 

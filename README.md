@@ -57,6 +57,8 @@ HandoffViolation in 'writer' (attempt 3/3):
 pip install handoff-guard
 ```
 
+Requires Python 3.10+ and Pydantic v2.
+
 ```python
 from handoff import guard, retry, parse_json  # PyPI: handoff-guard
 ```
@@ -75,9 +77,9 @@ python -m examples.llm_demo.run_demo  # no API key needed
 - **Know which node failed** — No more guessing from stack traces
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
-- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info
-- **Framework agnostic** — Works with LangGraph, plain Python (CrewAI adapter planned)
-- **Async supported** — Works with `async def` functions
+- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info. Use `detailed=True` to detect truncation and repair status
+- **Framework agnostic** — Works with LangGraph or plain Python
+- **Async supported** — Works with `async def` functions (context-local retry state)
 - **Lightweight** — Pydantic + json-repair, no Docker, no telemetry
 
 ## API
@@ -116,7 +118,7 @@ retry.history         # List of AttemptRecord objects
 ### `parse_json`
 
 ```python
-from handoff import parse_json
+from handoff import parse_json  # ParseResult is the return type when detailed=True
 
 # Handles code fences
 data = parse_json('```json\n{"key": "value"}\n```')
@@ -132,6 +134,12 @@ data = parse_json("{'a': 1}")         # single quotes
 data = parse_json('{a: 1}')           # unquoted keys
 data = parse_json('{"a": 1')          # missing brace
 data = parse_json('{"a": 1 // comment}')  # JS comments
+
+# Detailed mode: detect truncation and repair
+result = parse_json('{"draft": "long text...', detailed=True)
+result.data        # the parsed dict/list
+result.truncated   # True if unmatched braces (e.g., token limit or stream cutoff)
+result.repaired    # True if JSON had syntax errors that were auto-fixed
 
 # Raises ParseError on failure (retryable by @guard)
 # ParseError includes detailed context:
@@ -195,7 +203,7 @@ def router(state: dict) -> dict:
 
 ## Why not just use Pydantic directly?
 
-You should! Handoff uses Pydantic under the hood.
+You should! handoff-guard uses Pydantic under the hood.
 
 The difference:
 
@@ -206,13 +214,6 @@ The difference:
 | You wire up validation manually | One decorator |
 | No retry | Automatic retry with feedback |
 | Errors are for developers | Errors are actionable for agents |
-
-## Roadmap
-
-- [ ] Invariant contracts (input/output relationships)
-- [ ] CrewAI adapter
-- [x] Retry with feedback loop
-- [ ] VS Code extension for violation inspection
 
 ## Contributing
 
