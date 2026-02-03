@@ -1,9 +1,10 @@
 # handoff-guard
 
-> Validation for LLM agents that retries with feedback.
+> Pydantic contracts for LLM agents: validate, retry with feedback, get actionable errors.
 
 [![PyPI version](https://img.shields.io/pypi/v/handoff-guard)](https://pypi.org/project/handoff-guard/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 ## The Problem
 
@@ -19,7 +20,7 @@ Which node? Which field? What was passed? Can the agent fix it?
 ## The Solution
 
 ```python
-from handoff import guard, retry, parse_json
+from handoff import guard, retry, parse_json  # PyPI: handoff-guard
 from pydantic import BaseModel, Field
 
 class WriterOutput(BaseModel):
@@ -35,11 +36,11 @@ def writer_agent(state: dict) -> dict:
     if retry.is_retry:
         prompt += f"\n\nYour previous attempt failed:\n{retry.feedback()}"
 
-    response = call_llm(prompt)
-    return parse_json(response)
+    response = call_llm(prompt)  # your LLM call here
+    return parse_json(response)  # @guard validates dict against WriterOutput, returns dict as-is
 ```
 
-When validation fails, the agent retries with feedback about what went wrong. After all attempts are exhausted:
+If valid, the function returns normally. If invalid, it retries with feedback. After all attempts exhausted:
 
 ```
 HandoffViolation in 'writer' (attempt 3/3):
@@ -56,13 +57,16 @@ HandoffViolation in 'writer' (attempt 3/3):
 pip install handoff-guard
 ```
 
-```bash
-# See retry-with-feedback in action (no API key needed)
-python -m examples.llm_demo.run_demo
+```python
+from handoff import guard, retry, parse_json  # PyPI: handoff-guard
+```
 
-# Run with real LLM calls
-export OPENROUTER_API_KEY=your_key
-python -m examples.llm_demo.run_demo --pipeline --api
+To run demos, clone the repo:
+
+```bash
+git clone https://github.com/acartag7/handoff-guard && cd handoff-guard
+pip install -e ".[dev]"
+python -m examples.llm_demo.run_demo  # no API key needed
 ```
 
 ## Features
@@ -72,8 +76,9 @@ python -m examples.llm_demo.run_demo --pipeline --api
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
 - **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, repairs malformed JSON (trailing commas, single quotes, unquoted keys, missing braces, comments), raises `ParseError` with actionable line/column info
-- **Framework agnostic** — Works with LangGraph, CrewAI, or plain Python
-- **Lightweight** — Just Pydantic, no Docker, no telemetry servers
+- **Framework agnostic** — Works with LangGraph, plain Python (CrewAI adapter planned)
+- **Async supported** — Works with `async def` functions
+- **Lightweight** — Pydantic + json-repair, no Docker, no telemetry
 
 ## API
 
