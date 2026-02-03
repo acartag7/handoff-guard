@@ -19,6 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.0.0",
+    "json-repair>=0.55.0",
 ]
 
 [project.optional-dependencies]
