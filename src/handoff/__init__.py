@@ -1,7 +1,7 @@
 from handoff.core import HandoffViolation, ViolationContext
 from handoff.guard import guard, GuardConfig
 from handoff.retry import retry, RetryState, Diagnostic, AttemptRecord
-from handoff.utils import ParseError, parse_json
+from handoff.utils import ParseError, ParseResult, parse_json
 
 __all__ = [
     "guard",
@@ -13,7 +13,8 @@ __all__ = [
     "Diagnostic",
     "AttemptRecord",
     "ParseError",
+    "ParseResult",
     "parse_json",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"

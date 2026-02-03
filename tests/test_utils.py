@@ -1,7 +1,7 @@
 """Tests for handoff.utils."""
 
 import pytest
-from handoff.utils import parse_json, ParseError
+from handoff.utils import parse_json, ParseError, ParseResult
 
 
 class TestParseJson:
@@ -195,3 +195,78 @@ class TestParseJson:
         # Should have location info
         assert "line" in msg
         assert "column" in msg or "col" in msg
+
+    # --- Detailed mode with truncation/repair detection (HG-13) ---
+
+    def test_detailed_returns_parse_result(self):
+        result = parse_json('{"a": 1}', detailed=True)
+        assert isinstance(result, ParseResult)
+        assert result.data == {"a": 1}
+        assert result.truncated is False
+        assert result.repaired is False
+
+    def test_detailed_false_returns_data_directly(self):
+        result = parse_json('{"a": 1}', detailed=False)
+        assert result == {"a": 1}
+        assert not isinstance(result, ParseResult)
+
+    def test_detailed_detects_truncation_missing_brace(self):
+        # Simulates max_tokens cutoff mid-object
+        text = '{"draft": "This is a long article about technology'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is True
+        assert result.repaired is True  # json_repair fixes it
+        assert result.data == {"draft": "This is a long article about technology"}
+
+    def test_detailed_detects_truncation_missing_bracket(self):
+        # Simulates max_tokens cutoff mid-array
+        text = '{"items": [1, 2, 3, 4, 5'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is True
+        assert result.repaired is True
+        assert result.data == {"items": [1, 2, 3, 4, 5]}
+
+    def test_detailed_detects_truncation_nested(self):
+        # Deeply nested structure cut off
+        text = '{"a": {"b": {"c": "value'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is True
+        assert result.repaired is True
+
+    def test_detailed_detects_repair_trailing_comma(self):
+        # Trailing comma needs repair but is not truncation
+        text = '{"a": 1, "b": 2,}'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is False  # Balanced braces
+        assert result.repaired is True
+        assert result.data == {"a": 1, "b": 2}
+
+    def test_detailed_detects_repair_single_quotes(self):
+        text = "{'a': 'hello'}"
+        result = parse_json(text, detailed=True)
+        assert result.truncated is False
+        assert result.repaired is True
+        assert result.data == {"a": "hello"}
+
+    def test_detailed_valid_json_no_flags(self):
+        # Valid JSON should have both flags as False
+        text = '{"valid": true, "count": 42}'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is False
+        assert result.repaired is False
+        assert result.data == {"valid": True, "count": 42}
+
+    def test_detailed_with_wrappers_no_repair(self):
+        # Conversational wrappers don't count as repair
+        text = 'Sure! Here is the JSON:\n{"a": 1}'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is False
+        assert result.repaired is False  # Extraction != repair
+        assert result.data == {"a": 1}
+
+    def test_detailed_truncated_with_wrappers(self):
+        # Truncated JSON inside wrappers
+        text = 'Here you go:\n{"items": [1, 2, 3'
+        result = parse_json(text, detailed=True)
+        assert result.truncated is True
+        assert result.repaired is True
