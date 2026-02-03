@@ -2,7 +2,7 @@
 
 > Validation for LLM agents that retries with feedback.
 
-[![PyPI version](https://badge.fury.io/py/handoff-guard.svg)](https://badge.fury.io/py/handoff-guard)
+[![PyPI version](https://img.shields.io/pypi/v/handoff-guard)](https://pypi.org/project/handoff-guard/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## The Problem
@@ -71,7 +71,7 @@ python -m examples.llm_demo.run_demo --pipeline --api
 - **Know which node failed** — No more guessing from stack traces
 - **Know which field failed** — Exact path to the problem
 - **Get fix suggestions** — Actionable error messages
-- **`parse_json`** — Strips code fences, handles BOM, raises `ParseError` on failure
+- **`parse_json`** — Strips code fences, conversational wrappers, handles BOM, raises `ParseError` on failure
 - **Framework agnostic** — Works with LangGraph, CrewAI, or plain Python
 - **Lightweight** — Just Pydantic, no Docker, no telemetry servers
 
@@ -87,6 +87,7 @@ python -m examples.llm_demo.run_demo --pipeline --api
     max_attempts=3,             # Retry up to 3 times (default: 1, no retry)
     retry_on=("validation", "parse"),  # What errors trigger retry (default)
     on_fail="raise",            # "raise" | "return_none" | "return_input" | callable
+    input_param="state",        # Name of the input arg to validate (default: "state")
 )
 ```
 
@@ -112,8 +113,14 @@ retry.history         # List of AttemptRecord objects
 ```python
 from handoff import parse_json
 
+# Handles code fences
 data = parse_json('```json\n{"key": "value"}\n```')
 # Returns: {"key": "value"}
+
+# Handles LLM chattiness
+data = parse_json('Sure! Here\'s the JSON:\n{"key": "value"}\nLet me know if you need anything!')
+# Returns: {"key": "value"}
+
 # Raises ParseError on failure (retryable by @guard)
 ```
 

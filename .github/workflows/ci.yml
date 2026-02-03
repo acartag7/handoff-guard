@@ -29,8 +29,10 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-      - name: Run demo (no LLM)
-        run: python examples/demo/demo.py
+      - name: Run demos (no LLM)
+        run: |
+          python -m examples.llm_demo.run_demo
+          python -m examples.rag_demo.run_demo
 
   lint:
     runs-on: ubuntu-latest
