@@ -138,7 +138,7 @@ data = parse_json('{"a": 1 // comment}')  # JS comments
 # Detailed mode: detect truncation and repair
 result = parse_json('{"draft": "long text...', detailed=True)
 result.data        # the parsed dict/list
-result.truncated   # True if LLM hit max_tokens (unmatched braces)
+result.truncated   # True if unmatched braces (e.g., token limit or stream cutoff)
 result.repaired    # True if JSON had syntax errors that were auto-fixed
 
 # Raises ParseError on failure (retryable by @guard)
