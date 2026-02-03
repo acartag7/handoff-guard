@@ -35,8 +35,8 @@ def _format_context_snippet(text: str, lineno: int, colno: int) -> str:
 
         # Add pointer on error line
         if i == error_idx:
-            # Position pointer at column (1-indexed), clamped to line length
-            pointer_pos = min(colno - 1, len(lines[i])) if colno > 0 else 0
+            # Position pointer at column (1-indexed), clamped to truncated line length
+            pointer_pos = min(colno - 1, len(line_content)) if colno > 0 else 0
             pointer = " " * pointer_pos + "^"
             result.append(f"  {' ' * width} | {pointer}")
 
