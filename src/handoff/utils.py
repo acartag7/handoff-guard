@@ -231,13 +231,39 @@ def _is_likely_truncated(text: str) -> bool:
     if not text:
         return False
 
-    # Count unmatched braces/brackets
-    # This is a simple count that doesn't account for strings,
-    # but it's good enough for truncation detection
-    open_braces = text.count("{") - text.count("}")
-    open_brackets = text.count("[") - text.count("]")
+    # Count unmatched braces/brackets, respecting JSON string boundaries
+    depth_brace = 0
+    depth_bracket = 0
+    in_string = False
+    escape = False
 
-    return open_braces > 0 or open_brackets > 0
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+
+        if ch == "\\":
+            if in_string:
+                escape = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == "{":
+            depth_brace += 1
+        elif ch == "}":
+            depth_brace -= 1
+        elif ch == "[":
+            depth_bracket += 1
+        elif ch == "]":
+            depth_bracket -= 1
+
+    return depth_brace > 0 or depth_bracket > 0
 
 
 @overload
