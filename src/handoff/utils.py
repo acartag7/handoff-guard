@@ -1,8 +1,129 @@
 """Utility functions for handoff."""
 
 import json
+import re
 
 from json_repair import loads as repair_json
+
+
+def _format_context_snippet(text: str, lineno: int, colno: int) -> str:
+    """Format a snippet of text around the error location.
+
+    Shows 1 line before, the error line with pointer, and 1 line after.
+    """
+    lines = text.splitlines()
+    if not lines or lineno < 1:
+        return ""
+
+    # Clamp to valid range
+    error_idx = min(lineno - 1, len(lines) - 1)
+    start_idx = max(0, error_idx - 1)
+    end_idx = min(len(lines), error_idx + 2)
+
+    # Calculate width for line numbers
+    max_lineno = end_idx
+    width = len(str(max_lineno))
+
+    result = []
+    for i in range(start_idx, end_idx):
+        line_num = i + 1
+        line_content = lines[i]
+        # Truncate long lines
+        if len(line_content) > 80:
+            line_content = line_content[:77] + "..."
+        result.append(f"  {line_num:>{width}} | {line_content}")
+
+        # Add pointer on error line
+        if i == error_idx:
+            # Position pointer at column (1-indexed), clamped to line length
+            pointer_pos = min(colno - 1, len(lines[i])) if colno > 0 else 0
+            pointer = " " * pointer_pos + "^"
+            result.append(f"  {' ' * width} | {pointer}")
+
+    return "\n".join(result)
+
+
+def _suggest_fix(error_msg: str, text: str, lineno: int, colno: int) -> str | None:
+    """Suggest a fix based on the error message and context."""
+    msg_lower = error_msg.lower()
+
+    # Get character at/near error position for context
+    lines = text.splitlines()
+    char_at_error = ""
+    if lines and 1 <= lineno <= len(lines):
+        line = lines[lineno - 1]
+        if 0 < colno <= len(line):
+            char_at_error = line[colno - 1]
+
+    # Pattern match common errors
+    if "unterminated string" in msg_lower:
+        return "Missing closing quote. Check for unescaped quotes inside the string."
+
+    if "expecting property name" in msg_lower:
+        if char_at_error == "}":
+            return "Trailing comma before closing brace. Remove the comma."
+        return "Object key must be a double-quoted string."
+
+    if "unexpected end" in msg_lower or "end of data" in msg_lower:
+        # Count open vs close braces/brackets
+        open_braces = text.count("{") - text.count("}")
+        open_brackets = text.count("[") - text.count("]")
+        if open_braces > 0:
+            return f"Missing closing brace. {open_braces} unclosed '{{' found."
+        if open_brackets > 0:
+            return f"Missing closing bracket. {open_brackets} unclosed '[' found."
+        return "Unexpected end of input. Check for missing closing braces or brackets."
+
+    if "expecting value" in msg_lower:
+        if char_at_error == ",":
+            return "Trailing comma in array. Remove the comma before ']'."
+        if char_at_error == "}":
+            return "Missing value after colon."
+        return "Expected a value (string, number, object, array, true, false, or null)."
+
+    if "expecting ':'" in msg_lower or "expecting colon" in msg_lower:
+        return "Missing colon after object key."
+
+    if "expecting ',' or '}'" in msg_lower:
+        return "Missing comma between object properties, or extra content after value."
+
+    if "expecting ',' or ']'" in msg_lower:
+        return "Missing comma between array elements, or extra content after value."
+
+    if re.search(r"invalid \\escape|invalid escape", msg_lower):
+        return "Invalid escape sequence. Use \\\\ for backslash, or \\n, \\t, \\r, \\u for special chars."
+
+    return None
+
+
+def _format_parse_error(
+    error: json.JSONDecodeError, raw_text: str, preview_len: int = 200
+) -> str:
+    """Format a comprehensive parse error message."""
+    parts = [f"JSON parse error: {error.msg} at line {error.lineno}, column {error.colno}"]
+
+    # Add context snippet
+    snippet = _format_context_snippet(raw_text, error.lineno, error.colno)
+    if snippet:
+        parts.append("")
+        parts.append(snippet)
+
+    # Add suggestion
+    suggestion = _suggest_fix(error.msg, raw_text, error.lineno, error.colno)
+    if suggestion:
+        parts.append("")
+        parts.append(f"Suggestion: {suggestion}")
+
+    # Add input preview
+    preview = raw_text[:preview_len]
+    if len(raw_text) > preview_len:
+        preview += "..."
+    # Escape for single-line display
+    preview_escaped = preview.replace("\n", "\\n").replace("\t", "\\t")
+    parts.append("")
+    parts.append(f"Input preview: '{preview_escaped}'")
+
+    return "\n".join(parts)
 
 
 class ParseError(Exception):
@@ -139,7 +260,7 @@ def parse_json(text: str) -> dict:
         pass
 
     raise ParseError(
-        f"Invalid JSON: {first_error.msg} at line {first_error.lineno} col {first_error.colno}",
+        _format_parse_error(first_error, text),
         raw_output=text[:500],
         original=first_error,
     )
