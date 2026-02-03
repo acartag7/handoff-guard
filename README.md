@@ -129,7 +129,11 @@ data = parse_json('{"a": 1')          # missing brace
 data = parse_json('{"a": 1 // comment}')  # JS comments
 
 # Raises ParseError on failure (retryable by @guard)
-# ParseError includes .original with line/column info for actionable feedback
+# ParseError includes detailed context:
+#   - Line/column location
+#   - Context snippet with pointer
+#   - Suggested fix
+#   - Input preview for debugging
 ```
 
 ### `HandoffViolation`

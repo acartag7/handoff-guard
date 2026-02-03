@@ -103,11 +103,12 @@ Parses JSON from LLM text output. Processing chain:
 3. Strip markdown code fences, retry
 4. Extract JSON by boundary (handles conversational wrappers), retry
 5. Repair malformed JSON via `json-repair` (trailing commas, single quotes, unquoted keys, missing braces, JS comments)
-6. Raise `ParseError` with actionable line/column info
+6. Raise `ParseError` with detailed error message
 
 `ParseError` includes:
 - `.raw_output` — truncated input for debugging
 - `.original` — the underlying `JSONDecodeError` with line/column info
+- Error message with line/column location, context snippet with caret pointer, suggested fix, and input preview
 
 ### `HandoffViolation`
 
@@ -183,6 +184,6 @@ Tests are split across four files:
 - `test_guard.py` — Guard decorator: valid passthrough, invalid input/output raises, on_fail modes, custom node_name, input/output-only, async support, violation context and serialization
 - `test_retry.py` — Retry loop: succeeds on later attempt, exhausts max_attempts, RetryState injection, proxy behavior, feedback text, violation history, parse error retry, retry_on filtering, on_fail after retry, input validation skips retry, async retry
 - `test_testing.py` — `mock_retry()` context manager sets context and proxy works
-- `test_utils.py` — `parse_json`: valid JSON, code fence stripping, conversational wrapper stripping (preamble, postamble, combined, multiline, nested, arrays, escaped strings), JSON repair (trailing commas, single quotes, unquoted keys, missing braces, comments), invalid raises ParseError with original exception, non-string raises, BOM stripping
+- `test_utils.py` — `parse_json`: valid JSON, code fence stripping, conversational wrapper stripping (preamble, postamble, combined, multiline, nested, arrays, escaped strings), JSON repair (trailing commas, single quotes, unquoted keys, missing braces, comments), invalid raises ParseError with original exception, non-string raises, BOM stripping, error location and suggestions (context snippet, pointer, preview)
 
 Run with: `pytest tests/ -v`
