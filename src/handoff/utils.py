@@ -2,12 +2,20 @@
 
 import json
 
+from json_repair import loads as repair_json
+
 
 class ParseError(Exception):
     """Raised when output cannot be parsed as JSON."""
 
-    def __init__(self, message: str, raw_output: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        raw_output: str | None = None,
+        original: Exception | None = None,
+    ):
         self.raw_output = raw_output
+        self.original = original
         super().__init__(message)
 
 
@@ -80,7 +88,9 @@ def parse_json(text: str) -> dict:
     """Parse JSON from text, handling common LLM output quirks.
 
     Strips UTF-8 BOM, markdown code fences, and conversational
-    wrappers (preamble/postamble text) before parsing.
+    wrappers (preamble/postamble text) before parsing. Repairs
+    common JSON malformations (trailing commas, single quotes,
+    unquoted keys, missing braces, comments).
 
     Raises:
         ParseError: If text cannot be parsed as JSON.
@@ -94,11 +104,14 @@ def parse_json(text: str) -> dict:
     # Strip UTF-8 BOM
     cleaned = text.lstrip("\ufeff")
 
+    # Track first decode error for actionable feedback
+    first_error: json.JSONDecodeError | None = None
+
     # Fast path: try parsing directly
     try:
         return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as e:
+        first_error = e
 
     # Strip code fences and retry
     stripped = _strip_code_fences(cleaned)
@@ -115,7 +128,18 @@ def parse_json(text: str) -> dict:
         except json.JSONDecodeError:
             pass
 
+    # Attempt repair on extracted JSON or cleaned text
+    repair_target = extracted if extracted is not None else cleaned
+    try:
+        repaired = repair_json(repair_target)
+        # Only accept dict/list results (json_repair returns "" for invalid input)
+        if isinstance(repaired, (dict, list)):
+            return repaired
+    except Exception:
+        pass
+
     raise ParseError(
-        "Failed to parse JSON: no valid JSON found in text",
+        f"Invalid JSON: {first_error.msg} at line {first_error.lineno} col {first_error.colno}",
         raw_output=text[:500],
+        original=first_error,
     )

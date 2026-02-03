@@ -9,7 +9,7 @@ Guide for AI coding agents working on this codebase.
 - **Package name (PyPI):** `handoff-guard`
 - **Import name:** `handoff`
 - **Python:** >= 3.10
-- **Core dependency:** Pydantic >= 2.0
+- **Core dependencies:** Pydantic >= 2.0, json-repair >= 0.55
 
 ## Repository Structure
 
@@ -97,7 +97,17 @@ retry.history           # List of AttemptRecord
 
 ### `parse_json`
 
-Parses JSON from LLM text output. Strips UTF-8 BOM, markdown code fences, and conversational wrappers (preamble/postamble text) using JSON boundary extraction. Raises `ParseError` (retryable by `@guard`) on failure.
+Parses JSON from LLM text output. Processing chain:
+1. Strip UTF-8 BOM
+2. Try `json.loads` (fast path)
+3. Strip markdown code fences, retry
+4. Extract JSON by boundary (handles conversational wrappers), retry
+5. Repair malformed JSON via `json-repair` (trailing commas, single quotes, unquoted keys, missing braces, JS comments)
+6. Raise `ParseError` with actionable line/column info
+
+`ParseError` includes:
+- `.raw_output` — truncated input for debugging
+- `.original` — the underlying `JSONDecodeError` with line/column info
 
 ### `HandoffViolation`
 
@@ -150,7 +160,7 @@ python -m build
 ## Architecture Decisions
 
 - **Pydantic v2 only** — Uses `model_validate`, `model_dump`, not v1 API
-- **No runtime deps beyond Pydantic** — LangGraph/httpx are optional
+- **Minimal runtime deps** — Just Pydantic and json-repair; LangGraph/httpx are optional
 - **Sync and async** — `@guard` detects `async def` and wraps accordingly
 - **First violation wins** — Only the first validation error is raised (not all)
 - **Dict-oriented** — Agents typically pass dicts; the decorator validates dicts against Pydantic models without requiring the function to use models directly
@@ -173,6 +183,6 @@ Tests are split across four files:
 - `test_guard.py` — Guard decorator: valid passthrough, invalid input/output raises, on_fail modes, custom node_name, input/output-only, async support, violation context and serialization
 - `test_retry.py` — Retry loop: succeeds on later attempt, exhausts max_attempts, RetryState injection, proxy behavior, feedback text, violation history, parse error retry, retry_on filtering, on_fail after retry, input validation skips retry, async retry
 - `test_testing.py` — `mock_retry()` context manager sets context and proxy works
-- `test_utils.py` — `parse_json`: valid JSON, code fence stripping, conversational wrapper stripping (preamble, postamble, combined, multiline, nested, arrays, escaped strings), invalid raises ParseError, non-string raises, BOM stripping
+- `test_utils.py` — `parse_json`: valid JSON, code fence stripping, conversational wrapper stripping (preamble, postamble, combined, multiline, nested, arrays, escaped strings), JSON repair (trailing commas, single quotes, unquoted keys, missing braces, comments), invalid raises ParseError with original exception, non-string raises, BOM stripping
 
 Run with: `pytest tests/ -v`

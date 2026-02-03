@@ -101,3 +101,29 @@ class TestParseJson:
     def test_json_with_escaped_quotes_in_strings(self):
         text = 'Here:\n{"msg": "He said \\"hello\\""}  \nEnjoy!'
         assert parse_json(text) == {"msg": 'He said "hello"'}
+
+    # --- JSON repair ---
+
+    def test_parse_json_fixes_trailing_comma_object(self):
+        assert parse_json('{"a": 1,}') == {"a": 1}
+
+    def test_parse_json_fixes_trailing_comma_array(self):
+        assert parse_json('[1, 2, 3,]') == [1, 2, 3]
+
+    def test_parse_json_fixes_single_quotes(self):
+        assert parse_json("{'a': 'hello'}") == {"a": "hello"}
+
+    def test_parse_json_fixes_unquoted_keys(self):
+        assert parse_json('{a: 1, b: 2}') == {"a": 1, "b": 2}
+
+    def test_parse_json_fixes_missing_brace(self):
+        assert parse_json('{"a": 1') == {"a": 1}
+
+    def test_parse_json_removes_comments(self):
+        assert parse_json('{"a": 1 // comment\n}') == {"a": 1}
+
+    def test_parse_error_contains_original_exception(self):
+        with pytest.raises(ParseError) as exc_info:
+            parse_json("not json at all")
+        assert exc_info.value.original is not None
+        assert isinstance(exc_info.value.original, Exception)
